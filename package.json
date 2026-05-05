@@ -1,0 +1,11 @@
+{
+  "name": "recipe-project",
+  "scripts": {
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "backend": "cd recipe_tracker && node server.js",
+    "frontend": "cd recipe-frontend && npm run dev"
+  },
+  "dependencies": {
+    "axios": "^1.16.0"
+  }
+}

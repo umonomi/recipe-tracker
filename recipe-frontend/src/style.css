@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background: #f8fafc;
+  color: #1e293b;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Анимации для карточек */
+.recipe-card {
+  transition: all 0.2s ease;
+}
+.recipe-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 25px -8px rgba(0, 0, 0, 0.1);
+}
