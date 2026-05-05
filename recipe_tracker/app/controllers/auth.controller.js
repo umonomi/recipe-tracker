@@ -1,55 +1,63 @@
+const jwt = require('jsonwebtoken');
 const db = require("../models");
 const User = db.User;
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const secret = process.env.JWT_SECRET || "supersecretkey";
+const bcrypt = require('bcryptjs');
 
-// Регистрация
+// Регистрация пользователя
 exports.register = async (req, res) => {
   try {
     const { username, email, password } = req.body;
-    const hashed = bcrypt.hashSync(password, 8);
-    const user = await User.create({
-      username,
-      email,
-      password: hashed,
-      role: 'user'
-    });
-    res.status(201).send({ id: user.id, username: user.username, role: user.role });
+    const hashedPassword = bcrypt.hashSync(password, 8);
+    // Используем поле password, а не password_hash
+    const user = await User.create({ username, email, password: hashedPassword });
+    res.status(201).send({ id: user.id, username: user.username, email: user.email });
   } catch (err) {
     res.status(500).send({ message: err.message });
   }
 };
 
-// Логин
+// Вход пользователя
 exports.login = async (req, res) => {
   try {
     const { username, password } = req.body;
     const user = await User.findOne({ where: { username } });
     if (!user) return res.status(404).send({ message: "User not found" });
-
-    const valid = bcrypt.compareSync(password, user.password);
-    if (!valid) return res.status(401).send({ message: "Invalid password" });
-
-    const token = jwt.sign({ id: user.id, role: user.role }, secret, { expiresIn: 86400 }); // 24h
-    res.send({ id: user.id, username: user.username, role: user.role, token });
+    // Сравниваем с полем password
+    const passwordIsValid = bcrypt.compareSync(password, user.password);
+    if (!passwordIsValid) return res.status(401).send({ message: "Invalid password" });
+    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '24h' });
+    res.status(200).send({ id: user.id, username: user.username, role: user.role, token });
   } catch (err) {
     res.status(500).send({ message: err.message });
   }
 };
 
-// Middleware для проверки токена
+// Остальные middleware остаются без изменений
 exports.verifyToken = (req, res, next) => {
   const authHeader = req.headers.authorization;
-  if (!authHeader) return res.status(403).send({ message: "No token provided" });
-
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).send({ message: "No token provided" });
+  }
   const token = authHeader.split(' ')[1];
-  jwt.verify(token, secret, async (err, decoded) => {
-    if (err) return res.status(401).send({ message: "Unauthorized" });
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.userId = decoded.id;
-    // Дополнительно получаем роль пользователя из БД
-    const user = await db.User.findByPk(decoded.id);
-    req.userRole = user ? user.role : 'user';
+    req.userRole = decoded.role;
     next();
-  });
+  } catch (err) {
+    return res.status(401).send({ message: "Invalid token" });
+  }
+};
+
+exports.isAdmin = async (req, res, next) => {
+  try {
+    const user = await User.findByPk(req.userId);
+    if (user && user.role === 'admin') {
+      next();
+    } else {
+      res.status(403).send({ message: "Require admin role" });
+    }
+  } catch (err) {
+    res.status(500).send({ message: err.message });
+  }
 };
